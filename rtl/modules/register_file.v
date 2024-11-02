@@ -13,13 +13,33 @@ module register_file #(
     output [DATA_WIDTH-1:0] read_data_1_o,
     output [DATA_WIDTH-1:0] read_data_2_o
 );  
+    `include "registers.vh"
 
     reg [DATA_WIDTH-1:0] registers [0:DEPTH-1];
     integer i;
 
     // read ops
-    assign read_data_1_o = registers[read_addr_1_i];
-    assign read_data_2_o = registers[read_addr_2_i];
+    function [DATA_WIDTH-1:0] read_register;
+        input [ADDR_WIDTH-1:0] read_address;
+        begin
+            case (read_address)
+                REG_ZEROES_ADDR: begin
+                    read_register <= 32'h0;
+                end
+
+                REG_ONES_ADDR: begin
+                    read_register <= 32'hFFFFFFFF;
+                end
+
+                default: begin
+                    read_register <= registers[read_address];
+                end
+            endcase
+        end
+    endfunction
+
+    assign read_data_1_o = read_register(read_addr_1_i);
+    assign read_data_2_o = read_register(read_addr_2_i);
 
     // reset
     always @(posedge clk_i) begin
