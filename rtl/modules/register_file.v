@@ -44,7 +44,7 @@ module register_file #(
     // reset
     always @(posedge clk_i) begin
         if (reset_i) begin
-            for (i = 0; i < DEPTH; i++) begin
+            for (i = 0; i < DEPTH; i = i + 1) begin
                 registers[i] <= 0;
             end
         end

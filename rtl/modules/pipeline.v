@@ -19,6 +19,8 @@ module pipeline #(
     output reg [DATA_WIDTH-1:0]     bus_data_o,
     input      [DATA_WIDTH-1:0]     bus_data_i,
     output reg [MEM_ADDR_WIDTH-1:0] bus_addr_o,
+    output reg                      bus_rw_o,     // 1 for W, 0 for R
+    output reg                      bus_enable_o,
 
     // register file
     output reg                     reg_write_enable_o,
@@ -45,6 +47,9 @@ module pipeline #(
     reg [DATA_WIDTH-1:0] instruction;
     reg [7:0] opcode;
     reg [2:0] flavour;
+
+    // PC advance flag
+    reg pc_advance;
 
     // ALU outputs
     reg [DATA_WIDTH-1:0] alu_add_output;
@@ -84,6 +89,7 @@ module pipeline #(
             reg_read_addr_2_o <= 32'b0;
             operand_1 <= 32'b0;
             operand_2 <= 32'b0;
+            pc_advance <= 1'b1;
         end else begin
             // advance stage
             case (stage)
@@ -96,6 +102,8 @@ module pipeline #(
                     
                     // prepare to fetch instruction from memory by PC
                     bus_addr_o = reg_read_data_1_i;
+                    bus_rw_o = 1'b0;
+                    bus_enable_o = 1'b1;
 
                     // advance stage
                     stage = PL_EVAL_OPCODE_STAGE;
@@ -104,9 +112,10 @@ module pipeline #(
                 PL_EVAL_OPCODE_STAGE: begin
                     // fetch instruction from memory
                     instruction = bus_data_i;
+                    bus_enable_o = 1'b0;
 
                     // slice out the opcode and decode the flavour
-                    opcode = instruction[31:24]
+                    opcode = instruction[31:24];
                     flavour = decode_flavour(opcode);
 
                     // advance stage:
@@ -135,7 +144,7 @@ module pipeline #(
                     case (flavour)
                         FLAVOUR_A: begin
                             // if A-flavoured, use argument as straight address
-                            bus_addr_o = instruction[19:0]
+                            bus_addr_o = instruction[19:0];
                         end
 
                         FLAVOUR_E: begin
@@ -153,8 +162,12 @@ module pipeline #(
                         end
                     endcase
 
+                    // enable bus read
+                    bus_rw_o = 1'b0;
+                    bus_enable_o = 1'b1;
+
                     // advance stage
-                    stage = PL_FETCH_OPERANDS_STAGE
+                    stage = PL_FETCH_OPERANDS_STAGE;
                 end
 
                 PL_FETCH_OPERANDS_STAGE: begin
@@ -195,10 +208,12 @@ module pipeline #(
                         FLAVOUR_F, FLAVOUR_E, FLAVOUR_A: begin
                             // F, E, A flavours: first operand is fetched from registers,
                             //                   second operand fetched from memory in previous stage
-                            reg_read_addr_1_o = instruction[19:16];
+                            reg_read_addr_1_o = instruction[23:20];
 
                             operand_1 = reg_read_data_1_i;
                             operand_2 = bus_data_i;
+
+                            bus_enable_o = 1'b0;
                         end
                     endcase
 
@@ -247,6 +262,40 @@ module pipeline #(
                             // NOT: patch through the ALU output
                             stage_output = alu_not_output;
                         end
+
+                        OPCODE_LDI, OPCODE_LDE, OPCODE_LDA: begin
+                            // LD: load memory by address in operand_1 into destination register
+                            reg_write_addr_o = instruction[23:20];
+
+                            bus_addr_o = operand_1;
+                            reg_write_data_o = bus_data_i;
+
+                            reg_write_enable_o = 1'b1;
+
+                            bus_rw_o = 1'b0;
+                            bus_enable_o = 1'b1;
+                        end
+
+                        OPCODE_SDI, OPCODE_STE, OPCODE_STA: begin
+                            // ST: store source register into memory by address operand_1
+                            reg_read_addr_1_o = instruction[23:20];
+
+                            bus_addr_o = operand_1;
+                            bus_data_o = reg_read_data_1_i;
+
+                            bus_rw_o = 1'b1;
+                            bus_enable_o = 1'b1;
+                        end
+
+                        OPCODE_JMPF, OPCODE_JMPE, OPCODE_JMPA: begin
+                            // JMP: load PC with operand_1's contents
+                            pc_advance = 1'b0;
+
+                            reg_write_addr_o = REG_PC_ADDR;
+                            reg_write_data_o = operand_1;
+
+                            reg_write_enable_o = 1'b1;
+                        end
                     endcase
 
                     // advance stage
@@ -254,12 +303,18 @@ module pipeline #(
                 end
 
                 PL_WRITEBACK_STAGE: begin
-                    // advance PC and reset stage pointer
+                    // advance PC (if needed), reset memory enable flags and reset stage pointer
+                    if (pc_advance) begin
+                        reg_read_addr_1_o = REG_PC_ADDR;
+                        reg_write_addr_o = REG_PC_ADDR;
+                        reg_write_data_o = reg_read_data_1_i + 1'b1;
+                        reg_write_enable_o = 1'b1;
+                    end else begin
+                        pc_advance = 1'b1;
+                    end
+
                     reg_write_enable_o = 1'b0;
-                    reg_read_addr_1_o = REG_PC_ADDR;
-                    reg_write_addr_o = REG_PC_ADDR;
-                    reg_write_data_o = reg_read_data_1_i + 1'b1;
-                    reg_write_enable_o = 1'b1;
+                    bus_enable_o = 1'b0;
 
                     stage = PL_FETCH_INSTR_STAGE;
                 end
