@@ -24,15 +24,15 @@ module register_file #(
         begin
             case (read_address)
                 REG_ZEROES_ADDR: begin
-                    read_register <= 32'h0;
+                    read_register = 32'h0;
                 end
 
                 REG_ONES_ADDR: begin
-                    read_register <= 32'hFFFFFFFF;
+                    read_register = 32'hFFFFFFFF;
                 end
 
                 default: begin
-                    read_register <= registers[read_address];
+                    read_register = registers[read_address];
                 end
             endcase
         end

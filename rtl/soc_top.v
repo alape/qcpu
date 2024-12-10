@@ -26,8 +26,8 @@ module soc_top (
         .write_data_i(reg_write_data),
         .read_addr_1_i(reg_read_addr_1),
         .read_addr_2_i(reg_read_addr_2),
-        .read_data_1_i(reg_read_data_1),
-        .read_data_2_i(reg_read_data_2)
+        .read_data_1_o(reg_read_data_1),
+        .read_data_2_o(reg_read_data_2)
     );
 
     // CPU core
@@ -47,7 +47,7 @@ module soc_top (
         .reg_read_addr_1_o(reg_read_addr_1),
         .reg_read_addr_2_o(reg_read_addr_2),
         .reg_read_data_1_i(reg_read_data_1),
-        .reg_read_data_1_i(reg_read_data_2)
+        .reg_read_data_2_i(reg_read_data_2)
     );
 
     // some RAM

@@ -276,7 +276,7 @@ module pipeline #(
                             bus_enable_o = 1'b1;
                         end
 
-                        OPCODE_SDI, OPCODE_STE, OPCODE_STA: begin
+                        OPCODE_STF, OPCODE_STE, OPCODE_STA: begin
                             // ST: store source register into memory by address operand_1
                             reg_read_addr_1_o = instruction[23:20];
 

@@ -35,15 +35,15 @@ function [2:0] decode_flavour(input [7:0] opcode);
                 decode_flavour = FLAVOUR_T;
             end
 
-            OPCODE_LDF, OPCODE_STF, OPCODE_BEQF, OPCDOE_BNEF, OPCODE_BGTF, OPCODE_BLEF, OPCODE_JMPF, OPCODE_JALF: begin
+            OPCODE_LDF, OPCODE_STF, OPCODE_BEQF, OPCODE_BNEF, OPCODE_BGTF, OPCODE_BLEF, OPCODE_JMPF, OPCODE_JALF: begin
                 decode_flavour = FLAVOUR_F;
             end
 
-            OPCODE_LDE, OPCODE_STE, OPCODE_BEQE, OPCDOE_BNEE, OPCODE_BGTE, OPCODE_BLEE, OPCODE_JMPE, OPCODE_JALE: begin
+            OPCODE_LDE, OPCODE_STE, OPCODE_BEQE, OPCODE_BNEE, OPCODE_BGTE, OPCODE_BLEE, OPCODE_JMPE, OPCODE_JALE: begin
                 decode_flavour = FLAVOUR_E;
             end
 
-            OPCODE_LDA, OPCODE_STA, OPCODE_BEQA, OPCDOE_BNEA, OPCODE_BGTA, OPCODE_BLEA, OPCODE_JMPA, OPCODE_JALA: begin
+            OPCODE_LDA, OPCODE_STA, OPCODE_BEQA, OPCODE_BNEA, OPCODE_BGTA, OPCODE_BLEA, OPCODE_JMPA, OPCODE_JALA: begin
                 decode_flavour = FLAVOUR_A;
             end
         endcase
