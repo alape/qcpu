@@ -25,7 +25,7 @@ module ram #(
   integer i;
   initial for (i = 0; i < (A_MAX - 1); i = i + 1) memory[i] = 'b0; 
 
-  always @(posedge clk_i) begin
+  always @(negedge clk_i) begin
     if (enable_i) begin
       if (rw_i) 
         memory[address_i - A_OFFSET] <= data_i;   // write data

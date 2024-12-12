@@ -1,3 +1,5 @@
+`include "registers.vh"
+
 module register_file #(
     parameter DATA_WIDTH = 32,
     parameter DEPTH = 16,
@@ -13,7 +15,6 @@ module register_file #(
     output [DATA_WIDTH-1:0] read_data_1_o,
     output [DATA_WIDTH-1:0] read_data_2_o
 );  
-    `include "registers.vh"
 
     reg [DATA_WIDTH-1:0] registers [0:DEPTH-1];
     integer i;
@@ -23,11 +24,11 @@ module register_file #(
         input [ADDR_WIDTH-1:0] read_address;
         begin
             case (read_address)
-                REG_ZEROES_ADDR: begin
+                `REG_ZEROES_ADDR: begin
                     read_register = 32'h0;
                 end
 
-                REG_ONES_ADDR: begin
+                `REG_ONES_ADDR: begin
                     read_register = 32'hFFFFFFFF;
                 end
 
@@ -42,18 +43,17 @@ module register_file #(
     assign read_data_2_o = read_register(read_addr_2_i);
 
     // reset
-    always @(posedge clk_i) begin
+    always @(negedge clk_i) begin
         if (reset_i) begin
+            // reset
             for (i = 0; i < DEPTH; i = i + 1) begin
                 registers[i] <= 0;
             end
-        end
-    end
-
-    // write ops
-    always @(posedge clk_i) begin
-        if (write_enable_i) begin
-            registers[write_addr_i] <= write_data_i;
+        end else begin
+            // write ops
+            if (write_enable_i) begin
+                registers[write_addr_i] <= write_data_i;
+            end
         end
     end
 endmodule

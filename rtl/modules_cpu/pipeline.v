@@ -1,3 +1,6 @@
+`include "opcodes.vh"
+`include "registers.vh"
+
 module pipeline #(
     parameter DATA_WIDTH     = 32,
     parameter MEM_ADDR_WIDTH = 32,
@@ -31,13 +34,9 @@ module pipeline #(
     input      [DATA_WIDTH-1:0]    reg_read_data_1_i,
     input      [DATA_WIDTH-1:0]    reg_read_data_2_i
 );
-    `include "opcodes.vh"
-    `include "registers.vh"
-    `include "flavour_decoder.vh"
 
     // internal variables
     reg [STATE_WIDTH-1:0] stage;
-    reg [STATE_WIDTH-1:0] next_stage;
 
     // operand storage
     reg [DATA_WIDTH-1:0] operand_1;
@@ -76,20 +75,62 @@ module pipeline #(
         alu_rsh_output <= operand_2 >> operand_2;
     end
 
+    // flavour decoding logic
+    function [2:0] decode_flavour(input [7:0] opcode);
+    begin
+        case (opcode)
+            `OPCODE_NOPN, `OPCODE_RETN: begin
+                decode_flavour = `FLAVOUR_N;
+            end
+
+            `OPCODE_ADDR, `OPCODE_SUBR, `OPCODE_ANDR, `OPCODE_ORR, `OPCODE_XORR: begin
+                decode_flavour = `FLAVOUR_R;
+            end
+
+            `OPCODE_ADDI, `OPCODE_SUBI, `OPCODE_ANDI, `OPCODE_ORI, `OPCODE_XORI, `OPCODE_LDI: begin
+                decode_flavour = `FLAVOUR_I;
+            end
+
+            `OPCODE_LSHS, `OPCODE_RSHS: begin
+                decode_flavour = `FLAVOUR_S;
+            end
+
+            `OPCODE_NOTT: begin
+                decode_flavour = `FLAVOUR_T;
+            end
+
+            `OPCODE_LDF, `OPCODE_STF, `OPCODE_BEQF, `OPCODE_BNEF, `OPCODE_BGTF, `OPCODE_BLEF, `OPCODE_JMPF, `OPCODE_JALF: begin
+                decode_flavour = `FLAVOUR_F;
+            end
+
+            `OPCODE_LDE, `OPCODE_STE, `OPCODE_BEQE, `OPCODE_BNEE, `OPCODE_BGTE, `OPCODE_BLEE, `OPCODE_JMPE, `OPCODE_JALE: begin
+                decode_flavour = `FLAVOUR_E;
+            end
+
+            `OPCODE_LDA, `OPCODE_STA, `OPCODE_BEQA, `OPCODE_BNEA, `OPCODE_BGTA, `OPCODE_BLEA, `OPCODE_JMPA, `OPCODE_JALA: begin
+                decode_flavour = `FLAVOUR_A;
+            end
+        endcase
+    end
+endfunction
+
     // reset and stage advance logic
     always @(posedge clk_i) begin
         if (reset_i) begin
             // reset the stage counter and output regs
-            stage <= PL_FETCH_INSTR_STAGE;
-            bus_data_o <= 32'b0;
-            bus_addr_o <= 32'b0;
-            reg_write_data_o <= 32'b0;
-            reg_write_addr_o <= 32'b0;
-            reg_read_addr_1_o <= 32'b0;
-            reg_read_addr_2_o <= 32'b0;
-            operand_1 <= 32'b0;
-            operand_2 <= 32'b0;
-            pc_advance <= 1'b1;
+            stage = PL_FETCH_INSTR_STAGE;
+            bus_data_o = 32'b0;
+            bus_addr_o = 32'b0;
+            bus_rw_o = 1'b0;
+            bus_enable_o = 1'b0;
+				reg_write_enable_o = 1'b0;
+            reg_write_data_o = 32'b0;
+            reg_write_addr_o = 32'b0;
+            reg_read_addr_1_o = 32'b0;
+            reg_read_addr_2_o = 32'b0;
+            operand_1 = 32'b0;
+            operand_2 = 32'b0;
+            pc_advance = 1'b1;
         end else begin
             // advance stage
             case (stage)
@@ -98,7 +139,7 @@ module pipeline #(
                     reg_write_enable_o = 1'b0;
 
                     // prepare to fetch PC
-                    reg_read_addr_1_o = REG_PC_ADDR;
+                    reg_read_addr_1_o = `REG_PC_ADDR;
                     
                     // prepare to fetch instruction from memory by PC
                     bus_addr_o = reg_read_data_1_i;
@@ -119,14 +160,14 @@ module pipeline #(
                     flavour = decode_flavour(opcode);
 
                     // advance stage:
-                    //     - skip PL_EVAL_ADDR_STAGE if instruction is not F-, E- or A-flavoured
-                    //     - skip both PL_EVAL_ADDR_STAGE and PL_FETCH_OPERANDS_STAGE if instruction is N-flavoured
+                    //     - skip `PL_EVAL_ADDR_STAGE if instruction is not F-, E- or A-flavoured
+                    //     - skip both `PL_EVAL_ADDR_STAGE and `PL_FETCH_OPERANDS_STAGE if instruction is N-flavoured
                     case (flavour)
-                        FLAVOUR_A, FLAVOUR_E, FLAVOUR_F: begin
+                        `FLAVOUR_A, `FLAVOUR_E, `FLAVOUR_F: begin
                             stage = PL_EVAL_ADDR_STAGE;
                         end
 
-                        FLAVOUR_N: begin
+                        `FLAVOUR_N: begin
                             stage = PL_EXECUTE_STAGE;
                         end
 
@@ -142,19 +183,19 @@ module pipeline #(
                     
                     // set memory address to be fetched:
                     case (flavour)
-                        FLAVOUR_A: begin
+                        `FLAVOUR_A: begin
                             // if A-flavoured, use argument as straight address
                             bus_addr_o = instruction[19:0];
                         end
 
-                        FLAVOUR_E: begin
+                        `FLAVOUR_E: begin
                             // if E-flavoured, fetch PC and add offset to it
-                            reg_read_addr_1_o = REG_PC_ADDR;
+                            reg_read_addr_1_o = `REG_PC_ADDR;
 
                             bus_addr_o = reg_read_data_1_i + instruction[19:0];
                         end
 
-                        FLAVOUR_F: begin
+                        `FLAVOUR_F: begin
                             // if F-flavoured, fetch register referenced by instruction argument
                             reg_read_addr_1_o = instruction[19:16];
 
@@ -172,7 +213,7 @@ module pipeline #(
 
                 PL_FETCH_OPERANDS_STAGE: begin
                     case (flavour)
-                        FLAVOUR_R: begin
+                        `FLAVOUR_R: begin
                             // R flavour: both operands are fetched from registers
                             reg_read_addr_1_o = instruction[19:16];
                             reg_read_addr_2_o = instruction[15:12];
@@ -181,7 +222,7 @@ module pipeline #(
                             operand_2 = reg_read_data_2_i;
                         end
 
-                        FLAVOUR_I: begin
+                        `FLAVOUR_I: begin
                             // I flavour: one operand is fetched from register, other is immediate
                             reg_read_addr_1_o = instruction[19:16];
                             
@@ -189,7 +230,7 @@ module pipeline #(
                             operand_2 = instruction[15:0];
                         end
 
-                        FLAVOUR_S: begin
+                        `FLAVOUR_S: begin
                             // S flavour: first operand is in the same register as destination, other operand
                             //            is immediate
                             reg_read_addr_1_o = instruction[23:20];
@@ -198,14 +239,14 @@ module pipeline #(
                             operand_2 = instruction[19:0]; 
                         end
 
-                        FLAVOUR_T: begin
+                        `FLAVOUR_T: begin
                             // T flavour: only one operand is fetched from registers
                             reg_read_addr_1_o = instruction[19:16];
 
                             operand_1 = reg_read_data_1_i;
                         end
 
-                        FLAVOUR_F, FLAVOUR_E, FLAVOUR_A: begin
+                        `FLAVOUR_F, `FLAVOUR_E, `FLAVOUR_A: begin
                             // F, E, A flavours: first operand is fetched from registers,
                             //                   second operand fetched from memory in previous stage
                             reg_read_addr_1_o = instruction[23:20];
@@ -223,47 +264,47 @@ module pipeline #(
 
                 PL_EXECUTE_STAGE: begin
                     case (opcode)
-                        OPCODE_ADDI, OPCODE_ADDR: begin
+                        `OPCODE_ADDI, `OPCODE_ADDR: begin
                             // ADD: patch through the ALU output
                             stage_output = alu_add_output;
                         end
 
-                        OPCODE_SUBI, OPCODE_SUBR: begin
+                        `OPCODE_SUBI, `OPCODE_SUBR: begin
                             // SUB: patch through the ALU output
                             stage_output = alu_sub_output;
                         end
 
-                        OPCODE_ANDI, OPCODE_ANDR: begin
+                        `OPCODE_ANDI, `OPCODE_ANDR: begin
                             // AND: patch through the ALU output
                             stage_output = alu_and_output;
                         end
 
-                        OPCODE_ORI, OPCODE_ORR: begin
+                        `OPCODE_ORI, `OPCODE_ORR: begin
                             // OR: patch through the ALU output
                             stage_output = alu_or_output;
                         end
 
-                        OPCODE_XORI, OPCODE_XORR: begin
+                        `OPCODE_XORI, `OPCODE_XORR: begin
                             // ADD: patch through the ALU output
                             stage_output = alu_xor_output;
                         end
 
-                        OPCODE_LSHS: begin
+                        `OPCODE_LSHS: begin
                             // LSH: patch through the ALU output
                             stage_output = alu_lsh_output;
                         end
 
-                        OPCODE_RSHS: begin
+                        `OPCODE_RSHS: begin
                             // RSH: patch through the ALU output
                             stage_output = alu_rsh_output;
                         end
 
-                        OPCODE_NOTT: begin
+                        `OPCODE_NOTT: begin
                             // NOT: patch through the ALU output
                             stage_output = alu_not_output;
                         end
 
-                        OPCODE_LDI, OPCODE_LDE, OPCODE_LDA: begin
+                        `OPCODE_LDI, `OPCODE_LDE, `OPCODE_LDA: begin
                             // LD: load memory by address in operand_1 into destination register
                             reg_write_addr_o = instruction[23:20];
 
@@ -276,7 +317,7 @@ module pipeline #(
                             bus_enable_o = 1'b1;
                         end
 
-                        OPCODE_STF, OPCODE_STE, OPCODE_STA: begin
+                        `OPCODE_STF, `OPCODE_STE, `OPCODE_STA: begin
                             // ST: store source register into memory by address operand_1
                             reg_read_addr_1_o = instruction[23:20];
 
@@ -287,11 +328,11 @@ module pipeline #(
                             bus_enable_o = 1'b1;
                         end
 
-                        OPCODE_JMPF, OPCODE_JMPE, OPCODE_JMPA: begin
+                        `OPCODE_JMPF, `OPCODE_JMPE, `OPCODE_JMPA: begin
                             // JMP: load PC with operand_1's contents
                             pc_advance = 1'b0;
 
-                            reg_write_addr_o = REG_PC_ADDR;
+                            reg_write_addr_o = `REG_PC_ADDR;
                             reg_write_data_o = operand_1;
 
                             reg_write_enable_o = 1'b1;
@@ -305,15 +346,15 @@ module pipeline #(
                 PL_WRITEBACK_STAGE: begin
                     // advance PC (if needed), reset memory enable flags and reset stage pointer
                     if (pc_advance) begin
-                        reg_read_addr_1_o = REG_PC_ADDR;
-                        reg_write_addr_o = REG_PC_ADDR;
+                        reg_read_addr_1_o = `REG_PC_ADDR;
+                        reg_write_addr_o = `REG_PC_ADDR;
                         reg_write_data_o = reg_read_data_1_i + 1'b1;
                         reg_write_enable_o = 1'b1;
                     end else begin
                         pc_advance = 1'b1;
+								reg_write_enable_o = 1'b0;
                     end
 
-                    reg_write_enable_o = 1'b0;
                     bus_enable_o = 1'b0;
 
                     stage = PL_FETCH_INSTR_STAGE;
