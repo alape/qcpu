@@ -23,16 +23,7 @@ module pipeline #(
     input      [DATA_WIDTH-1:0]     bus_data_i,
     output reg [MEM_ADDR_WIDTH-1:0] bus_addr_o,
     output reg                      bus_rw_o,     // 1 for W, 0 for R
-    output reg                      bus_enable_o,
-
-    // register file
-    output reg                     reg_write_enable_o,
-    output reg [DATA_WIDTH-1:0]    reg_write_data_o,
-    output reg [REG_IDX_WIDTH-1:0] reg_write_addr_o,
-    output reg [REG_IDX_WIDTH-1:0] reg_read_addr_1_o,
-    output reg [REG_IDX_WIDTH-1:0] reg_read_addr_2_o,
-    input      [DATA_WIDTH-1:0]    reg_read_data_1_i,
-    input      [DATA_WIDTH-1:0]    reg_read_data_2_i
+    output reg                      bus_enable_o
 );
 
     // internal variables
@@ -62,6 +53,18 @@ module pipeline #(
 
     // stage output
     reg [DATA_WIDTH-1:0] stage_output;
+    
+    // register file
+    reg [DATA_WIDTH-1:0] registers [0:15];
+    
+    // reset registers
+    integer i;
+    initial begin
+        for (i = 0; i < 16; i = i + 1) registers[i] = 'h0;
+        
+        registers[`REG_ZEROES_ADDR] = 'h0;
+        registers[`REG_ONES_ADDR] = 32'hFFFF;
+    end
 
     // ALU logic
     always @(*) begin
@@ -123,11 +126,6 @@ endfunction
             bus_addr_o = 32'b0;
             bus_rw_o = 1'b0;
             bus_enable_o = 1'b0;
-				reg_write_enable_o = 1'b0;
-            reg_write_data_o = 32'b0;
-            reg_write_addr_o = 32'b0;
-            reg_read_addr_1_o = 32'b0;
-            reg_read_addr_2_o = 32'b0;
             operand_1 = 32'b0;
             operand_2 = 32'b0;
             pc_advance = 1'b1;
@@ -135,14 +133,8 @@ endfunction
             // advance stage
             case (stage)
                 PL_FETCH_INSTR_STAGE: begin
-                    // reset register WE flag
-                    reg_write_enable_o = 1'b0;
-
-                    // prepare to fetch PC
-                    reg_read_addr_1_o = `REG_PC_ADDR;
-                    
                     // prepare to fetch instruction from memory by PC
-                    bus_addr_o = reg_read_data_1_i;
+                    bus_addr_o = registers[`REG_PC_ADDR];
                     bus_rw_o = 1'b0;
                     bus_enable_o = 1'b1;
 
@@ -190,16 +182,12 @@ endfunction
 
                         `FLAVOUR_E: begin
                             // if E-flavoured, fetch PC and add offset to it
-                            reg_read_addr_1_o = `REG_PC_ADDR;
-
-                            bus_addr_o = reg_read_data_1_i + instruction[19:0];
+                            bus_addr_o = registers[`REG_PC_ADDR] + instruction[19:0];
                         end
 
                         `FLAVOUR_F: begin
                             // if F-flavoured, fetch register referenced by instruction argument
-                            reg_read_addr_1_o = instruction[19:16];
-
-                            bus_addr_o = reg_read_data_1_i;
+                            bus_addr_o = registers[instruction[19:16]];
                         end
                     endcase
 
@@ -215,43 +203,32 @@ endfunction
                     case (flavour)
                         `FLAVOUR_R: begin
                             // R flavour: both operands are fetched from registers
-                            reg_read_addr_1_o = instruction[19:16];
-                            reg_read_addr_2_o = instruction[15:12];
-
-                            operand_1 = reg_read_data_1_i;
-                            operand_2 = reg_read_data_2_i;
+                            operand_1 = registers[instruction[19:16]];
+                            operand_2 = registers[instruction[15:12]];
                         end
 
                         `FLAVOUR_I: begin
                             // I flavour: one operand is fetched from register, other is immediate
-                            reg_read_addr_1_o = instruction[19:16];
-                            
-                            operand_1 = reg_read_data_1_i;
+                            operand_1 = registers[instruction[19:16]];
                             operand_2 = instruction[15:0];
                         end
 
                         `FLAVOUR_S: begin
                             // S flavour: first operand is in the same register as destination, other operand
                             //            is immediate
-                            reg_read_addr_1_o = instruction[23:20];
-
-                            operand_1 = reg_read_data_1_i;
+                            operand_1 = registers[instruction[23:20]];
                             operand_2 = instruction[19:0]; 
                         end
 
                         `FLAVOUR_T: begin
                             // T flavour: only one operand is fetched from registers
-                            reg_read_addr_1_o = instruction[19:16];
-
-                            operand_1 = reg_read_data_1_i;
+                            operand_1 = registers[instruction[19:16]];
                         end
 
                         `FLAVOUR_F, `FLAVOUR_E, `FLAVOUR_A: begin
                             // F, E, A flavours: first operand is fetched from registers,
                             //                   second operand fetched from memory in previous stage
-                            reg_read_addr_1_o = instruction[23:20];
-
-                            operand_1 = reg_read_data_1_i;
+                            operand_1 = registers[instruction[23:20]];
                             operand_2 = bus_data_i;
 
                             bus_enable_o = 1'b0;
@@ -306,12 +283,7 @@ endfunction
 
                         `OPCODE_LDI, `OPCODE_LDE, `OPCODE_LDA: begin
                             // LD: load memory by address in operand_1 into destination register
-                            reg_write_addr_o = instruction[23:20];
-
                             bus_addr_o = operand_1;
-                            reg_write_data_o = bus_data_i;
-
-                            reg_write_enable_o = 1'b1;
 
                             bus_rw_o = 1'b0;
                             bus_enable_o = 1'b1;
@@ -319,10 +291,8 @@ endfunction
 
                         `OPCODE_STF, `OPCODE_STE, `OPCODE_STA: begin
                             // ST: store source register into memory by address operand_1
-                            reg_read_addr_1_o = instruction[23:20];
-
                             bus_addr_o = operand_1;
-                            bus_data_o = reg_read_data_1_i;
+                            bus_data_o = registers[instruction[23:20]];
 
                             bus_rw_o = 1'b1;
                             bus_enable_o = 1'b1;
@@ -332,10 +302,7 @@ endfunction
                             // JMP: load PC with operand_1's contents
                             pc_advance = 1'b0;
 
-                            reg_write_addr_o = `REG_PC_ADDR;
-                            reg_write_data_o = operand_1;
-
-                            reg_write_enable_o = 1'b1;
+                            registers[`REG_PC_ADDR] = operand_1;
                         end
                     endcase
 
@@ -344,15 +311,18 @@ endfunction
                 end
 
                 PL_WRITEBACK_STAGE: begin
+                    // finish the memory access operations
+                    case (opcode)
+                        `OPCODE_LDI, `OPCODE_LDE, `OPCODE_LDA: begin
+                            registers[instruction[23:20]] = bus_data_i;
+                        end
+                    endcase
+                
                     // advance PC (if needed), reset memory enable flags and reset stage pointer
                     if (pc_advance) begin
-                        reg_read_addr_1_o = `REG_PC_ADDR;
-                        reg_write_addr_o = `REG_PC_ADDR;
-                        reg_write_data_o = reg_read_data_1_i + 1'b1;
-                        reg_write_enable_o = 1'b1;
+                        registers[`REG_PC_ADDR] = registers[`REG_PC_ADDR] + 1'b1;
                     end else begin
                         pc_advance = 1'b1;
-								reg_write_enable_o = 1'b0;
                     end
 
                     bus_enable_o = 1'b0;
