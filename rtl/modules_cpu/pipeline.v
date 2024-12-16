@@ -317,6 +317,15 @@ endfunction
                             registers[instruction[23:20]] = bus_data_i;
                         end
                     endcase
+                    
+                    // write stage output to destination (if necessary)
+                    case (flavour)
+                        `FLAVOUR_R, `FLAVOUR_I, `FLAVOUR_S, `FLAVOUR_T: begin
+                            if (opcode != `OPCODE_LDI) begin
+                                registers[instruction[23:20]] = stage_output;
+                            end
+                        end
+                    endcase
                 
                     // advance PC (if needed), reset memory enable flags and reset stage pointer
                     if (pc_advance) begin
