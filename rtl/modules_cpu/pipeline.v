@@ -1,6 +1,13 @@
 `include "opcodes.vh"
 `include "registers.vh"
 
+`define PL_FETCH_INSTR_STAGE    3'b000
+`define PL_EVAL_OPCODE_STAGE    3'b001
+`define PL_EVAL_ADDR_STAGE      3'b010
+`define PL_FETCH_OPERANDS_STAGE 3'b011
+`define PL_EXECUTE_STAGE        3'b100
+`define PL_WRITEBACK_STAGE      3'b101
+
 module pipeline #(
     parameter DATA_WIDTH     = 32,
     parameter MEM_ADDR_WIDTH = 32,
@@ -8,12 +15,7 @@ module pipeline #(
 
     parameter STATE_WIDTH    = 3,
 
-    parameter PL_FETCH_INSTR_STAGE    = 3'b000,
-    parameter PL_EVAL_OPCODE_STAGE    = 3'b001,
-    parameter PL_EVAL_ADDR_STAGE      = 3'b010,
-    parameter PL_FETCH_OPERANDS_STAGE = 3'b011,
-    parameter PL_EXECUTE_STAGE        = 3'b100,
-    parameter PL_WRITEBACK_STAGE      = 3'b101
+    parameter RESET_VECTOR   = 0
 ) (
     input clk_i,
     input reset_i,
@@ -82,7 +84,7 @@ module pipeline #(
     always @(posedge clk_i) begin
         if (reset_i) begin
             // reset the stage counter and output regs
-            stage = PL_FETCH_INSTR_STAGE;
+            stage = `PL_FETCH_INSTR_STAGE;
             bus_data_o = 32'b0;
             bus_addr_o = 32'b0;
             bus_rw_o = 1'b0;
@@ -90,20 +92,23 @@ module pipeline #(
             operand_1 = 32'b0;
             operand_2 = 32'b0;
             pc_advance = 1'b1;
+            
+            // load reset vector into PC
+            registers[`REG_PC_ADDR] = RESET_VECTOR;
         end else begin
             // advance stage
             case (stage)
-                PL_FETCH_INSTR_STAGE: begin
+                `PL_FETCH_INSTR_STAGE: begin
                     // prepare to fetch instruction from memory by PC
                     bus_addr_o = registers[`REG_PC_ADDR];
                     bus_rw_o = 1'b0;
                     bus_enable_o = 1'b1;
 
                     // advance stage
-                    stage = PL_EVAL_OPCODE_STAGE;
+                    stage = `PL_EVAL_OPCODE_STAGE;
                 end
 
-                PL_EVAL_OPCODE_STAGE: begin
+                `PL_EVAL_OPCODE_STAGE: begin
                     // fetch instruction from memory
                     instruction = bus_data_i;
                     bus_enable_o = 1'b0;
@@ -117,20 +122,20 @@ module pipeline #(
                     //     - skip both `PL_EVAL_ADDR_STAGE and `PL_FETCH_OPERANDS_STAGE if instruction is N-flavoured
                     case (flavour)
                         `FLAVOUR_A, `FLAVOUR_E, `FLAVOUR_F: begin
-                            stage = PL_EVAL_ADDR_STAGE;
+                            stage = `PL_EVAL_ADDR_STAGE;
                         end
 
                         `FLAVOUR_N: begin
-                            stage = PL_EXECUTE_STAGE;
+                            stage = `PL_EXECUTE_STAGE;
                         end
 
                         default: begin
-                            stage = PL_FETCH_OPERANDS_STAGE;
+                            stage = `PL_FETCH_OPERANDS_STAGE;
                         end
                     endcase
                 end
 
-                PL_EVAL_ADDR_STAGE: begin
+                `PL_EVAL_ADDR_STAGE: begin
                     // only invoked if instruction is F-, A- or E-flavoured 
                     // (i.e. needs to fetch operands from memory)
                     
@@ -157,10 +162,10 @@ module pipeline #(
                     bus_enable_o = 1'b1;
 
                     // advance stage
-                    stage = PL_FETCH_OPERANDS_STAGE;
+                    stage = `PL_FETCH_OPERANDS_STAGE;
                 end
 
-                PL_FETCH_OPERANDS_STAGE: begin
+                `PL_FETCH_OPERANDS_STAGE: begin
                     case (flavour)
                         `FLAVOUR_R: begin
                             // R flavour: both operands are fetched from registers
@@ -197,10 +202,10 @@ module pipeline #(
                     endcase
 
                     // advance stage
-                    stage = PL_EXECUTE_STAGE;
+                    stage = `PL_EXECUTE_STAGE;
                 end
 
-                PL_EXECUTE_STAGE: begin
+                `PL_EXECUTE_STAGE: begin
                     case (opcode)
                         `OPCODE_ADD: begin
                             // ADD: patch through the ALU output
@@ -268,10 +273,10 @@ module pipeline #(
                     endcase
 
                     // advance stage
-                    stage = PL_WRITEBACK_STAGE;
+                    stage = `PL_WRITEBACK_STAGE;
                 end
 
-                PL_WRITEBACK_STAGE: begin
+                `PL_WRITEBACK_STAGE: begin
                     // finish the memory access operations
                     case (opcode)
                         `OPCODE_LD: begin
@@ -297,11 +302,11 @@ module pipeline #(
 
                     bus_enable_o = 1'b0;
 
-                    stage = PL_FETCH_INSTR_STAGE;
+                    stage = `PL_FETCH_INSTR_STAGE;
                 end
 
                 default: begin
-                    stage = PL_FETCH_INSTR_STAGE;
+                    stage = `PL_FETCH_INSTR_STAGE;
                 end
             endcase
         end
