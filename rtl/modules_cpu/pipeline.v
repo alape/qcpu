@@ -35,7 +35,7 @@ module pipeline #(
 
     // instruction storage
     reg [DATA_WIDTH-1:0] instruction;
-    reg [7:0] opcode;
+    reg [4:0] opcode;
     reg [2:0] flavour;
 
     // PC advance flag
@@ -78,45 +78,6 @@ module pipeline #(
         alu_rsh_output <= operand_2 >> operand_2;
     end
 
-    // flavour decoding logic
-    function [2:0] decode_flavour(input [7:0] opcode);
-    begin
-        case (opcode)
-            `OPCODE_NOPN, `OPCODE_RETN: begin
-                decode_flavour = `FLAVOUR_N;
-            end
-
-            `OPCODE_ADDR, `OPCODE_SUBR, `OPCODE_ANDR, `OPCODE_ORR, `OPCODE_XORR: begin
-                decode_flavour = `FLAVOUR_R;
-            end
-
-            `OPCODE_ADDI, `OPCODE_SUBI, `OPCODE_ANDI, `OPCODE_ORI, `OPCODE_XORI, `OPCODE_LDI: begin
-                decode_flavour = `FLAVOUR_I;
-            end
-
-            `OPCODE_LSHS, `OPCODE_RSHS: begin
-                decode_flavour = `FLAVOUR_S;
-            end
-
-            `OPCODE_NOTT: begin
-                decode_flavour = `FLAVOUR_T;
-            end
-
-            `OPCODE_LDF, `OPCODE_STF, `OPCODE_BEQF, `OPCODE_BNEF, `OPCODE_BGTF, `OPCODE_BLEF, `OPCODE_JMPF, `OPCODE_JALF: begin
-                decode_flavour = `FLAVOUR_F;
-            end
-
-            `OPCODE_LDE, `OPCODE_STE, `OPCODE_BEQE, `OPCODE_BNEE, `OPCODE_BGTE, `OPCODE_BLEE, `OPCODE_JMPE, `OPCODE_JALE: begin
-                decode_flavour = `FLAVOUR_E;
-            end
-
-            `OPCODE_LDA, `OPCODE_STA, `OPCODE_BEQA, `OPCODE_BNEA, `OPCODE_BGTA, `OPCODE_BLEA, `OPCODE_JMPA, `OPCODE_JALA: begin
-                decode_flavour = `FLAVOUR_A;
-            end
-        endcase
-    end
-endfunction
-
     // reset and stage advance logic
     always @(posedge clk_i) begin
         if (reset_i) begin
@@ -147,9 +108,9 @@ endfunction
                     instruction = bus_data_i;
                     bus_enable_o = 1'b0;
 
-                    // slice out the opcode and decode the flavour
-                    opcode = instruction[31:24];
-                    flavour = decode_flavour(opcode);
+                    // slice out the opcode and flavour
+                    opcode = instruction[28:24];
+                    flavour = instruction[31:29];
 
                     // advance stage:
                     //     - skip `PL_EVAL_ADDR_STAGE if instruction is not F-, E- or A-flavoured
@@ -241,47 +202,47 @@ endfunction
 
                 PL_EXECUTE_STAGE: begin
                     case (opcode)
-                        `OPCODE_ADDI, `OPCODE_ADDR: begin
+                        `OPCODE_ADD: begin
                             // ADD: patch through the ALU output
                             stage_output = alu_add_output;
                         end
 
-                        `OPCODE_SUBI, `OPCODE_SUBR: begin
+                        `OPCODE_SUB: begin
                             // SUB: patch through the ALU output
                             stage_output = alu_sub_output;
                         end
 
-                        `OPCODE_ANDI, `OPCODE_ANDR: begin
+                        `OPCODE_AND: begin
                             // AND: patch through the ALU output
                             stage_output = alu_and_output;
                         end
 
-                        `OPCODE_ORI, `OPCODE_ORR: begin
+                        `OPCODE_OR: begin
                             // OR: patch through the ALU output
                             stage_output = alu_or_output;
                         end
 
-                        `OPCODE_XORI, `OPCODE_XORR: begin
+                        `OPCODE_XOR: begin
                             // ADD: patch through the ALU output
                             stage_output = alu_xor_output;
                         end
 
-                        `OPCODE_LSHS: begin
+                        `OPCODE_LSH: begin
                             // LSH: patch through the ALU output
                             stage_output = alu_lsh_output;
                         end
 
-                        `OPCODE_RSHS: begin
+                        `OPCODE_RSH: begin
                             // RSH: patch through the ALU output
                             stage_output = alu_rsh_output;
                         end
 
-                        `OPCODE_NOTT: begin
+                        `OPCODE_NOT: begin
                             // NOT: patch through the ALU output
                             stage_output = alu_not_output;
                         end
 
-                        `OPCODE_LDI, `OPCODE_LDE, `OPCODE_LDA: begin
+                        `OPCODE_LD: begin
                             // LD: load memory by address in operand_1 into destination register
                             bus_addr_o = operand_1;
 
@@ -289,7 +250,7 @@ endfunction
                             bus_enable_o = 1'b1;
                         end
 
-                        `OPCODE_STF, `OPCODE_STE, `OPCODE_STA: begin
+                        `OPCODE_ST: begin
                             // ST: store source register into memory by address operand_1
                             bus_addr_o = operand_1;
                             bus_data_o = registers[instruction[23:20]];
@@ -298,7 +259,7 @@ endfunction
                             bus_enable_o = 1'b1;
                         end
 
-                        `OPCODE_JMPF, `OPCODE_JMPE, `OPCODE_JMPA: begin
+                        `OPCODE_JMP: begin
                             // JMP: load PC with operand_1's contents
                             pc_advance = 1'b0;
 
@@ -313,7 +274,7 @@ endfunction
                 PL_WRITEBACK_STAGE: begin
                     // finish the memory access operations
                     case (opcode)
-                        `OPCODE_LDI, `OPCODE_LDE, `OPCODE_LDA: begin
+                        `OPCODE_LD: begin
                             registers[instruction[23:20]] = bus_data_i;
                         end
                     endcase
@@ -321,7 +282,7 @@ endfunction
                     // write stage output to destination (if necessary)
                     case (flavour)
                         `FLAVOUR_R, `FLAVOUR_I, `FLAVOUR_S, `FLAVOUR_T: begin
-                            if (opcode != `OPCODE_LDI) begin
+                            if (opcode != `OPCODE_LD) begin
                                 registers[instruction[23:20]] = stage_output;
                             end
                         end
