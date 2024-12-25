@@ -248,11 +248,17 @@ module pipeline #(
                         end
 
                         `OPCODE_LD: begin
-                            // LD: load memory by address in operand_1 into destination register
-                            bus_addr_o = operand_1;
-
-                            bus_rw_o = 1'b0;
-                            bus_enable_o = 1'b1;
+                            // LD: 
+                            //   flavours F, E, A: load memory by address in operand_1 into destination register
+                            //   flavour S:        load immediate operand_2 into destination register
+                            if (flavour == `FLAVOUR_S) begin
+                                stage_output = operand_2;
+                            end else begin
+                                bus_addr_o = operand_1;
+    
+                                bus_rw_o = 1'b0;
+                                bus_enable_o = 1'b1;
+                            end
                         end
 
                         `OPCODE_ST: begin
@@ -280,16 +286,16 @@ module pipeline #(
                     // finish the memory access operations
                     case (opcode)
                         `OPCODE_LD: begin
-                            registers[instruction[23:20]] = bus_data_i;
+                            if (flavour != `FLAVOUR_S) begin
+                                registers[instruction[23:20]] = bus_data_i;
+                            end
                         end
                     endcase
                     
                     // write stage output to destination (if necessary)
                     case (flavour)
                         `FLAVOUR_R, `FLAVOUR_I, `FLAVOUR_S, `FLAVOUR_T: begin
-                            if (opcode != `OPCODE_LD) begin
-                                registers[instruction[23:20]] = stage_output;
-                            end
+                            registers[instruction[23:20]] = stage_output;
                         end
                     endcase
                 
