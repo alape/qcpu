@@ -15,7 +15,8 @@ module pipeline #(
 
     parameter STATE_WIDTH    = 3,
 
-    parameter RESET_VECTOR   = 0
+    parameter RESET_VECTOR   = 0,
+    parameter STACK_VECTOR   = 0
 ) (
     input clk_i,
     input reset_i,
@@ -65,7 +66,7 @@ module pipeline #(
         for (i = 0; i < 16; i = i + 1) registers[i] = 'h0;
         
         registers[`REG_ZEROES_ADDR] = 'h0;
-        registers[`REG_ONES_ADDR] = 32'hFFFF;
+        registers[`REG_ONES_ADDR] = 32'hFFFFFFFF;
     end
 
     // ALU logic
@@ -95,6 +96,9 @@ module pipeline #(
             
             // load reset vector into PC
             registers[`REG_PC_ADDR] = RESET_VECTOR;
+            
+            // load stack vector into SC
+            registers[`REG_SC_ADDR] = STACK_VECTOR;
         end else begin
             // advance stage
             case (stage)
@@ -245,6 +249,42 @@ module pipeline #(
 
                             bus_rw_o = 1'b1;
                             bus_enable_o = 1'b1;
+                        end
+                        
+                        `OPCODE_BEQ: begin
+                            // BEQ: jump to destination if operand_1 == operand_2
+                            if (operand_1 == operand_2) begin
+                                pc_advance = 1'b0;
+                                
+                                registers[`REG_PC_ADDR] = registers[instruction[23:20]];
+                            end
+                        end
+                        
+                        `OPCODE_BNE: begin
+                            // BNE: jump to destination if operand_1 != operand_2
+                            if (operand_1 != operand_2) begin
+                                pc_advance = 1'b0;
+                                
+                                registers[`REG_PC_ADDR] = registers[instruction[23:20]];
+                            end
+                        end
+                        
+                        `OPCODE_BGT: begin
+                            // BGT: jump to destination if operand_1 > operand_2
+                            if (operand_1 > operand_2) begin
+                                pc_advance = 1'b0;
+                                
+                                registers[`REG_PC_ADDR] = registers[instruction[23:20]];
+                            end
+                        end
+                        
+                        `OPCODE_BLT: begin
+                            // BLT: jump to destination if operand_1 < operand_2
+                            if (operand_1 < operand_2) begin
+                                pc_advance = 1'b0;
+                                
+                                registers[`REG_PC_ADDR] = registers[instruction[23:20]];
+                            end
                         end
 
                         `OPCODE_JMP: begin

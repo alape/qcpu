@@ -15,7 +15,7 @@
 `define OPCODE_BEQ 5'h0B
 `define OPCODE_BNE 5'h0C
 `define OPCODE_BGT 5'h0D
-`define OPCODE_BLE 5'h0E
+`define OPCODE_BLT 5'h0E
 `define OPCODE_JMP 5'h0F
 `define OPCODE_JAL 5'h10
 `define OPCODE_RET 5'h11
