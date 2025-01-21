@@ -24,7 +24,7 @@
 `define FLAVOUR_R 3'h1
 `define FLAVOUR_I 3'h2
 `define FLAVOUR_S 3'h3
-`define FLAVOUR_T 3'h4
+`define FLAVOUR_Q 3'h4
 `define FLAVOUR_F 3'h5
 `define FLAVOUR_E 3'h6
 `define FLAVOUR_A 3'h7

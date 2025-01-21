@@ -23,7 +23,7 @@ module ram #(
   
   // initialize memory with zeroes if needed
   integer i;
-  initial for (i = 0; i < (A_MAX - 1); i = i + 1) memory[i] = 'b0; 
+  // initial for (i = 0; i < (A_MAX - 1); i = i + 1) memory[i] = 'b0; 
 
   always @(negedge clk_i) begin
     if (enable_i) begin

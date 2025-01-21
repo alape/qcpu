@@ -118,44 +118,23 @@ module pipeline #(
                     flavour = instruction[31:29];
 
                     // advance stage:
-                    //     - skip `PL_EVAL_ADDR_STAGE if instruction is not F-, E- or A-flavoured
+                    //     - skip `PL_EVAL_ADDR_STAGE if instruction is not LD
                     //     - skip both `PL_EVAL_ADDR_STAGE and `PL_FETCH_OPERANDS_STAGE if instruction is N-flavoured
-                    case (flavour)
-                        `FLAVOUR_A, `FLAVOUR_E, `FLAVOUR_F: begin
-                            stage = `PL_EVAL_ADDR_STAGE;
-                        end
-
-                        `FLAVOUR_N: begin
-                            stage = `PL_EXECUTE_STAGE;
-                        end
-
-                        default: begin
-                            stage = `PL_FETCH_OPERANDS_STAGE;
-                        end
-                    endcase
+                    if (opcode == `OPCODE_LD) begin
+                        stage = `PL_EVAL_ADDR_STAGE;
+                    end else if (flavour == `FLAVOUR_N) begin 
+                        stage = `PL_EXECUTE_STAGE;  
+                    end else begin
+                        stage = `PL_FETCH_OPERANDS_STAGE;
+                    end
                 end
 
                 `PL_EVAL_ADDR_STAGE: begin
-                    // only invoked if instruction is F-, A- or E-flavoured 
-                    // (i.e. needs to fetch operands from memory)
+                    // only invoked if instruction is LD
+                    // (i.e. it needs to fetch operands from memory)
                     
-                    // set memory address to be fetched:
-                    case (flavour)
-                        `FLAVOUR_A: begin
-                            // if A-flavoured, use argument as straight address
-                            bus_addr_o = instruction[19:0];
-                        end
-
-                        `FLAVOUR_E: begin
-                            // if E-flavoured, fetch PC and add offset to it
-                            bus_addr_o = registers[`REG_PC_ADDR] + instruction[19:0];
-                        end
-
-                        `FLAVOUR_F: begin
-                            // if F-flavoured, fetch register referenced by instruction argument
-                            bus_addr_o = registers[instruction[19:16]];
-                        end
-                    endcase
+                    // prepare to fetch operand
+                    bus_addr_o = registers[instruction[19:16]];
 
                     // enable bus read
                     bus_rw_o = 1'b0;
@@ -186,16 +165,23 @@ module pipeline #(
                             operand_2 = instruction[19:0]; 
                         end
 
-                        `FLAVOUR_T: begin
-                            // T flavour: only one operand is fetched from registers
-                            operand_1 = registers[instruction[19:16]];
+                        `FLAVOUR_F: begin
+                            // F flavour: one operand is fetched from registers
+                            operand_2 = registers[instruction[19:16]];
+                        end
+                        
+                        `FLAVOUR_Q: begin
+                            // Q flavour: one full-width (24 bits) immediate operand
+                            operand_2 = instruction[23:0];
                         end
 
-                        `FLAVOUR_F, `FLAVOUR_E, `FLAVOUR_A: begin
-                            // F, E, A flavours: first operand is fetched from registers,
-                            //                   second operand fetched from memory in previous stage
-                            operand_1 = registers[instruction[23:20]];
-                            operand_2 = bus_data_i;
+                        `FLAVOUR_A: begin
+                            // A flavour: one operand is either fetched from memory (LD) or is immediate (ST)
+                            if (opcode == `OPCODE_LD) begin
+                               operand_2 = bus_data_i;
+                            end else begin
+                               operand_2 = instruction[19:0];
+                            end
 
                             bus_enable_o = 1'b0;
                         end
@@ -248,22 +234,13 @@ module pipeline #(
                         end
 
                         `OPCODE_LD: begin
-                            // LD: 
-                            //   flavours F, E, A: load memory by address in operand_1 into destination register
-                            //   flavour S:        load immediate operand_2 into destination register
-                            if (flavour == `FLAVOUR_S) begin
-                                stage_output = operand_2;
-                            end else begin
-                                bus_addr_o = operand_1;
-    
-                                bus_rw_o = 1'b0;
-                                bus_enable_o = 1'b1;
-                            end
+                            // LD: patch through the operand fetched in the previous stage
+                            stage_output = operand_2;
                         end
 
                         `OPCODE_ST: begin
-                            // ST: store source register into memory by address operand_1
-                            bus_addr_o = operand_1;
+                            // ST: store source register into memory by address operand_2
+                            bus_addr_o = operand_2;
                             bus_data_o = registers[instruction[23:20]];
 
                             bus_rw_o = 1'b1;
@@ -271,10 +248,10 @@ module pipeline #(
                         end
 
                         `OPCODE_JMP: begin
-                            // JMP: load PC with operand_1's contents
+                            // JMP: load PC with operand_2's contents
                             pc_advance = 1'b0;
 
-                            registers[`REG_PC_ADDR] = operand_1;
+                            registers[`REG_PC_ADDR] = operand_2;
                         end
                     endcase
 
@@ -284,21 +261,21 @@ module pipeline #(
 
                 `PL_WRITEBACK_STAGE: begin
                     // finish the memory access operations
-                    case (opcode)
-                        `OPCODE_LD: begin
-                            if (flavour != `FLAVOUR_S) begin
-                                registers[instruction[23:20]] = bus_data_i;
-                            end
-                        end
-                    endcase
                     
-                    // write stage output to destination (if necessary)
-                    case (flavour)
-                        `FLAVOUR_R, `FLAVOUR_I, `FLAVOUR_S, `FLAVOUR_T: begin
-                            registers[instruction[23:20]] = stage_output;
-                        end
-                    endcase
-                
+                    // write stage output to destination (if necessary, depending on the opcode)
+                    if ((opcode == `OPCODE_ADD) |
+                        (opcode == `OPCODE_SUB) |
+                        (opcode == `OPCODE_AND) |
+                        (opcode == `OPCODE_OR)  |
+                        (opcode == `OPCODE_XOR) |
+                        (opcode == `OPCODE_LSH) |
+                        (opcode == `OPCODE_RSH) |
+                        (opcode == `OPCODE_NOT) |
+                        (opcode == `OPCODE_LD)) 
+                    begin
+                        registers[instruction[23:20]] = stage_output;
+				    end
+				    
                     // advance PC (if needed), reset memory enable flags and reset stage pointer
                     if (pc_advance) begin
                         registers[`REG_PC_ADDR] = registers[`REG_PC_ADDR] + 1'b1;

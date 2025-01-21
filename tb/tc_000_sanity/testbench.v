@@ -12,6 +12,8 @@ module tb_000_sanity();
     localparam CLK_PERIOD = 10;
     
     always #(CLK_PERIOD / 2) tb_clock =~ tb_clock;
+    
+    `include "tc_000_sanity.vh"
 
     initial begin
         #1 tb_reset <= 1'bx; tb_clock <= 1'bx;
