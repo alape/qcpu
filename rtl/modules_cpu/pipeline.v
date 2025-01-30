@@ -174,6 +174,11 @@ module pipeline #(
                             operand_2 = registers[instruction[19:16]];
                         end
                         
+                        `FLAVOUR_E: begin
+                            // E flavour: one operand is fetched from registers
+                            operand_2 = registers[instruction[23:20]];
+                        end
+                        
                         `FLAVOUR_Q: begin
                             // Q flavour: one full-width (24 bits) immediate operand
                             operand_2 = instruction[23:0];
@@ -293,6 +298,32 @@ module pipeline #(
 
                             registers[`REG_PC_ADDR] = operand_2;
                         end
+                        
+                        `OPCODE_JAL: begin
+                            // JAL: load PC with operand_2's contents, push PC+1 to stack
+                            pc_advance = 1'b0;
+                            
+                            bus_addr_o = registers[`REG_SC_ADDR];
+                            bus_data_o = registers[`REG_PC_ADDR] + 1;
+                            
+                            bus_rw_o = 1'b1;
+                            bus_enable_o = 1'b1;
+                            
+                            registers[`REG_PC_ADDR] = operand_2;
+                            registers[`REG_SC_ADDR] = registers[`REG_SC_ADDR] + 1;
+                        end
+                        
+                        `OPCODE_RET: begin
+                            // RET: pop value from stack to PC
+                            pc_advance = 1'b0;
+                            
+                            bus_addr_o = registers[`REG_SC_ADDR];
+                            
+                            bus_rw_o = 1'b0;
+                            bus_enable_o = 1'b1;
+                            
+                            registers[`REG_SC_ADDR] = registers[`REG_SC_ADDR] - 1;
+                        end
                     endcase
 
                     // advance stage
@@ -314,6 +345,11 @@ module pipeline #(
                         (opcode == `OPCODE_LD)) 
                     begin
                         registers[instruction[23:20]] = stage_output;
+				    end
+				    
+				    // finish RET execution
+				    if (opcode == `OPCODE_RET) begin
+				        registers[`REG_PC_ADDR] = bus_data_i;
 				    end
 				    
                     // advance PC (if needed), reset memory enable flags and reset stage pointer
