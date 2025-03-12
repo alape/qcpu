@@ -10,7 +10,7 @@ module ram #(
 
   input      [D_WIDTH-1:0] data_i,      // data input
 
-  output reg [D_WIDTH-1:0] data_o,      // data output
+  output     [D_WIDTH-1:0] data_o,      // data output
 
   input                    enable_i,    // normal operation if 1, 
                                         // outputs not driven & data not written when 0
@@ -21,6 +21,9 @@ module ram #(
   // memory as multi-dimensional array
   reg [D_WIDTH-1:0] memory [A_MAX-1:0];
   
+  // output buffer
+  reg [D_WIDTH-1:0] out;
+  
   // initialize memory with zeroes if needed
   integer i;
   // initial for (i = 0; i < (A_MAX - 1); i = i + 1) memory[i] = 'b0; 
@@ -28,9 +31,12 @@ module ram #(
   always @(negedge clk_i) begin
     if (enable_i) begin
       if (rw_i) 
-        memory[address_i - A_OFFSET] <= data_i;   // write data
+        memory[address_i - A_OFFSET] = data_i;   // write data
       else
-        data_o <= memory[address_i - A_OFFSET];    // read data
+        out = memory[address_i - A_OFFSET];    // read data
     end
   end
+  
+  // drive bus only if enabled
+  assign data_o = (enable_i)? out : 'hZ;
 endmodule
