@@ -8,7 +8,6 @@ module tb_001_gpio();
     wire [31:0] bus_data_input;
     wire [31:0] bus_addr;
     wire        bus_rw;
-    wire        bus_enable;
     wire [31:0] gpio_io;
 
     // ------------ SoC setup ------------
@@ -21,8 +20,7 @@ module tb_001_gpio();
         .bus_data_o(bus_data_output),
         .bus_data_i(bus_data_input),
         .bus_addr_o(bus_addr),
-        .bus_rw_o(bus_rw),
-        .bus_enable_o(bus_enable)
+        .bus_rw_o(bus_rw)
     );
 
     // some RAM @'h0 ~ 'h1FF

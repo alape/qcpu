@@ -25,8 +25,7 @@ module pipeline #(
     output reg [DATA_WIDTH-1:0]     bus_data_o,
     input      [DATA_WIDTH-1:0]     bus_data_i,
     output reg [MEM_ADDR_WIDTH-1:0] bus_addr_o,
-    output reg                      bus_rw_o,     // 1 for W, 0 for R
-    output reg                      bus_enable_o
+    output reg                      bus_rw_o     // 1 for W, 0 for R
 );
 
     // internal variables
@@ -89,7 +88,6 @@ module pipeline #(
             bus_data_o = 32'b0;
             bus_addr_o = 32'b0;
             bus_rw_o = 1'b0;
-            bus_enable_o = 1'b0;
             operand_1 = 32'b0;
             operand_2 = 32'b0;
             pc_advance = 1'b1;
@@ -106,7 +104,6 @@ module pipeline #(
                     // prepare to fetch instruction from memory by PC
                     bus_addr_o = registers[`REG_PC_ADDR];
                     bus_rw_o = 1'b0;
-                    bus_enable_o = 1'b1;
 
                     // advance stage
                     stage = `PL_EVAL_OPCODE_STAGE;
@@ -115,7 +112,6 @@ module pipeline #(
                 `PL_EVAL_OPCODE_STAGE: begin
                     // fetch instruction from memory
                     instruction = bus_data_i;
-                    bus_enable_o = 1'b0;
 
                     // slice out the opcode and flavour
                     opcode = instruction[28:24];
@@ -142,7 +138,6 @@ module pipeline #(
 
                     // enable bus read
                     bus_rw_o = 1'b0;
-                    bus_enable_o = 1'b1;
 
                     // advance stage
                     stage = `PL_FETCH_OPERANDS_STAGE;
@@ -191,8 +186,6 @@ module pipeline #(
                             end else begin
                                operand_2 = instruction[19:0];
                             end
-
-                            bus_enable_o = 1'b0;
                         end
                     endcase
 
@@ -253,7 +246,6 @@ module pipeline #(
                             bus_data_o = registers[instruction[23:20]];
 
                             bus_rw_o = 1'b1;
-                            bus_enable_o = 1'b1;
                         end
                         
                         `OPCODE_BEQ: begin
@@ -307,7 +299,6 @@ module pipeline #(
                             bus_data_o = registers[`REG_PC_ADDR] + 1;
                             
                             bus_rw_o = 1'b1;
-                            bus_enable_o = 1'b1;
                             
                             registers[`REG_PC_ADDR] = operand_2;
                             registers[`REG_SC_ADDR] = registers[`REG_SC_ADDR] + 1;
@@ -320,7 +311,6 @@ module pipeline #(
                             bus_addr_o = registers[`REG_SC_ADDR];
                             
                             bus_rw_o = 1'b0;
-                            bus_enable_o = 1'b1;
                             
                             registers[`REG_SC_ADDR] = registers[`REG_SC_ADDR] - 1;
                         end
@@ -358,8 +348,6 @@ module pipeline #(
                     end else begin
                         pc_advance = 1'b1;
                     end
-
-                    bus_enable_o = 1'b0;
 
                     stage = `PL_FETCH_INSTR_STAGE;
                 end

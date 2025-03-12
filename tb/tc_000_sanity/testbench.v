@@ -4,9 +4,32 @@ module tb_000_sanity();
     reg tb_clock;
     reg tb_reset;
 
-    soc_top cpu(
-        .clk (tb_clock),
-        .reset (tb_reset)
+    wire [31:0] bus_data_output;
+    wire [31:0] bus_data_input;
+    wire [31:0] bus_addr;
+    wire        bus_rw;
+
+    // CPU core
+    pipeline cpu_core (
+        .clk_i(tb_clock),
+        .reset_i(tb_reset),
+
+        .bus_data_o(bus_data_output),
+        .bus_data_i(bus_data_input),
+        .bus_addr_o(bus_addr),
+        .bus_rw_o(bus_rw)
+    );
+
+    // some RAM
+    ram #(.A_MAX(512)) cpu_ram (
+        .clk_i(tb_clock),
+    
+        .address_i(bus_addr),
+        .data_i(bus_data_output),
+        .data_o(bus_data_input),
+    
+        .enable_i(1'b1),
+        .rw_i(bus_rw)
     );
 
     localparam CLK_PERIOD = 10;
