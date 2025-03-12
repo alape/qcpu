@@ -120,7 +120,7 @@ module pipeline #(
                     // advance stage:
                     //     - skip `PL_EVAL_ADDR_STAGE if instruction is not LD
                     //     - skip both `PL_EVAL_ADDR_STAGE and `PL_FETCH_OPERANDS_STAGE if instruction is N-flavoured
-                    if (opcode == `OPCODE_LD) begin
+                    if ((opcode == `OPCODE_LD) && (flavour != `FLAVOUR_S)) begin
                         stage = `PL_EVAL_ADDR_STAGE;
                     end else if (flavour == `FLAVOUR_N) begin 
                         stage = `PL_EXECUTE_STAGE;  
@@ -134,7 +134,11 @@ module pipeline #(
                     // (i.e. it needs to fetch operands from memory)
                     
                     // prepare to fetch operand
-                    bus_addr_o = registers[instruction[19:16]];
+						  if (flavour == `FLAVOUR_F) begin
+                        bus_addr_o = registers[instruction[19:16]];
+						  end else if (flavour == `FLAVOUR_A) begin
+						      bus_addr_o = instruction[19:0];
+						  end
 
                     // enable bus read
                     bus_rw_o = 1'b0;
@@ -165,8 +169,8 @@ module pipeline #(
                         end
 
                         `FLAVOUR_F: begin
-                            // F flavour: one operand is fetched from registers
-                            operand_2 = registers[instruction[19:16]];
+                            // F flavour: one operand is fetched from memory by register reference
+                            operand_2 = bus_data_i;
                         end
                         
                         `FLAVOUR_E: begin
@@ -308,11 +312,10 @@ module pipeline #(
                             // RET: pop value from stack to PC
                             pc_advance = 1'b0;
                             
+									 registers[`REG_SC_ADDR] = registers[`REG_SC_ADDR] - 1;
                             bus_addr_o = registers[`REG_SC_ADDR];
                             
                             bus_rw_o = 1'b0;
-                            
-                            registers[`REG_SC_ADDR] = registers[`REG_SC_ADDR] - 1;
                         end
                     endcase
 
