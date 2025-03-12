@@ -41,28 +41,36 @@ module gpio #(
   always @(negedge clk_i) begin
     if (enable_i) begin
       case (address_i)
+        // EASYMMAP_ID = 32'h4750494F @0x0 r
         `REG_EASYMMAP_ID: begin
           if (!rw_i) begin
             bus_out = `EASYMAP_GPIO_ID;
           end
         end
 
+        // IBUF = 32'h0 @0x1 r
         `REG_IBUF: begin
           if (!rw_i) begin
             bus_out = i_buf;
           end
         end
 
+        // IBUF = 32'h0 @0x2 rw
         `REG_OBUF: begin
           if (rw_i) begin
             o_buf = data_i;
           end
+          
+          bus_out = o_buf;
         end
 
+        // MODEBUF = 32'h0 @0x3 rw
         `REG_MODEBUF: begin
           if (rw_i) begin
             mode_buf = data_i;
           end
+          
+          bus_out = mode_buf;
         end
       endcase
     end
