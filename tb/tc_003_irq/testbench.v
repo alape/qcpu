@@ -1,14 +1,15 @@
 `timescale 1ns/1ps
 
-module tb_001_gpio();
+module tb_003_irq();
     reg tb_clock;
     reg tb_reset;
+    
+    reg [32:0] irq;
 
     wire [31:0] bus_data_output;
     wire [31:0] bus_data_input;
     wire [31:0] bus_addr;
     wire        bus_rw;
-    wire [31:0] gpio_io;
 
     // ------------ SoC setup ------------
 
@@ -22,7 +23,7 @@ module tb_001_gpio();
         .bus_addr_o(bus_addr),
         .bus_rw_o(bus_rw),
         
-        .irq_i(32'b0)
+        .irq_i(irq)
     );
 
     // some RAM @'h0 ~ 'h1FF
@@ -37,8 +38,8 @@ module tb_001_gpio();
         .rw_i(bus_rw)
     );
 
-    // GPIO IP @'h200 (enable_i is 1 << 
-    gpio #(.A_WIDTH(9)) cpu_gpio (
+    // SIMIO IP @'h200 (enable_i is 1 << 9)
+    simio #(.A_WIDTH(9)) cpu_simio (
         .clk_i(tb_clock),
 
         .address_i(bus_addr[8:0]),
@@ -46,21 +47,21 @@ module tb_001_gpio();
         .data_o(bus_data_input),
 
         .enable_i(bus_addr[9]),
-        .rw_i(bus_rw),
-
-        .gpio_io(gpio_io)
+        .rw_i(bus_rw)
     );
 
     localparam CLK_PERIOD = 10;
     
     always #(CLK_PERIOD / 2) tb_clock =~ tb_clock;
     
-    `include "tc_001_gpio.vh"
+    `include "tc_003_irq.vh"
 
     initial begin
-        #1 tb_reset <= 1'bx; tb_clock <= 1'bx;
+        #1 tb_reset <= 1'bx; tb_clock <= 1'bx; irq <= 32'b0;
         #(CLK_PERIOD * 3) tb_reset <= 1; tb_clock <= 0;
         #(CLK_PERIOD * 3) tb_reset <= 0;
+        #(20000) irq <= 32'h49525121;
+        #(20400) irq <= 32'b0;
     end
 endmodule
 

@@ -19,7 +19,9 @@ module tb_002_simio();
         .bus_data_o(bus_data_output),
         .bus_data_i(bus_data_input),
         .bus_addr_o(bus_addr),
-        .bus_rw_o(bus_rw)
+        .bus_rw_o(bus_rw),
+        
+        .irq_i(32'b0)
     );
 
     // some RAM @'h0 ~ 'h1FF

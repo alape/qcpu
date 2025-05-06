@@ -6,6 +6,9 @@
 `define REG_ONES_ADDR   4'h1
 `define REG_PC_ADDR     4'h2
 `define REG_SC_ADDR     4'h3
+`define REG_SR_ADDR     4'h4
+`define REG_IR_ADDR     4'h5
+`define REG_IV_ADDR     4'h6
 
 // general-purpose registers
 `define REG_R0_ADDR 4'h8

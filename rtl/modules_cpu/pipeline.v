@@ -25,7 +25,10 @@ module pipeline #(
     output reg [DATA_WIDTH-1:0]     bus_data_o,
     input      [DATA_WIDTH-1:0]     bus_data_i,
     output reg [MEM_ADDR_WIDTH-1:0] bus_addr_o,
-    output reg                      bus_rw_o     // 1 for W, 0 for R
+    output reg                      bus_rw_o,     // 1 for W, 0 for R
+    
+    // interrupts
+    input      [DATA_WIDTH-1:0]     irq_i
 );
 
     // internal variables
@@ -98,6 +101,28 @@ module pipeline #(
             // load stack vector into SC
             registers[`REG_SC_ADDR] = STACK_VECTOR;
         end else begin
+            // handle interrupts
+            if ((irq_i != 32'b0) && (!(registers[`REG_SR_ADDR] & 32'b100))) begin
+                registers[`REG_IR_ADDR] = irq_i;
+                
+                // if SR.IE is set and SR.II is not, JAL to IRQ vector
+                // interrupts won't resume until SR.II is reset by the program
+                if ((registers[`REG_SR_ADDR] & 32'b10) && 
+                    (!(registers[`REG_SR_ADDR] & 32'b100))) begin
+						  registers[`REG_SR_ADDR] = registers[`REG_SR_ADDR] | 32'b100;  // set SR.II
+						  
+                    pc_advance = 1'b0;
+                                            
+                    bus_addr_o = registers[`REG_SC_ADDR];
+                    bus_data_o = registers[`REG_PC_ADDR] + 1;
+                    
+                    bus_rw_o = 1'b1;
+                    
+                    registers[`REG_PC_ADDR] = registers[`REG_IV_ADDR];
+                    registers[`REG_SC_ADDR] = registers[`REG_SC_ADDR] + 1;
+                end
+            end
+        
             // advance stage
             case (stage)
                 `PL_FETCH_INSTR_STAGE: begin
