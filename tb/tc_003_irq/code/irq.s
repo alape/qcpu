@@ -15,11 +15,12 @@
                 jmp end                 ; loop infinitely while waiting for interrupts
 
     irqhandler: ; handles an incoming interrupt
-                ld r0, $irq_text       ; output interrupt message
+                ld r0, $irq_text        ; output interrupt message
                 ld r1, irq_len
                 jal puts
 
-                ld r0, ir               ; output interrupt reason as a word
+                st ir, $outc
+                ld r0, $outc            ; output interrupt reason as a word
                 ld r1, 1
                 jal puts
 
@@ -65,6 +66,7 @@
     wait_len:       word 0x7
     irq_text:       data "An interrupt has occurred" 0xA
     irq_len:        word 0x7
+    outc:           word 0x0
 
 .bss
     stack:           word 0

@@ -4,7 +4,7 @@ module tb_003_irq();
     reg tb_clock;
     reg tb_reset;
     
-    reg [32:0] irq;
+    reg [31:0] irq;
 
     wire [31:0] bus_data_output;
     wire [31:0] bus_data_input;
