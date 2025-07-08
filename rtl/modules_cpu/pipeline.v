@@ -159,11 +159,11 @@ module pipeline #(
                     // (i.e. it needs to fetch operands from memory)
                     
                     // prepare to fetch operand
-						  if (flavour == `FLAVOUR_F) begin
+					if (flavour == `FLAVOUR_F) begin
                         bus_addr_o = registers[instruction[19:16]];
-						  end else if (flavour == `FLAVOUR_A) begin
-						      bus_addr_o = instruction[19:0];
-						  end
+                    end else if (flavour == `FLAVOUR_A) begin
+                        bus_addr_o = instruction[19:0];
+                    end
 
                     // enable bus read
                     bus_rw_o = 1'b0;
@@ -337,11 +337,29 @@ module pipeline #(
                             // RET: pop value from stack to PC
                             pc_advance = 1'b0;
                             
-									 registers[`REG_SC_ADDR] = registers[`REG_SC_ADDR] - 1;
+							registers[`REG_SC_ADDR] = registers[`REG_SC_ADDR] - 1;
                             bus_addr_o = registers[`REG_SC_ADDR];
                             
                             bus_rw_o = 1'b0;
                         end
+                        
+                        `OPCODE_PSH: begin
+                            // PSH: push operand_2 to stack
+                            bus_addr_o = registers[`REG_SC_ADDR];
+                            bus_data_o = operand_2;
+                            
+                            bus_rw_o = 1'b1;
+                            
+                            registers[`REG_SC_ADDR] = registers[`REG_SC_ADDR] + 1;
+                        end
+                        
+                        `OPCODE_POP: begin
+                             // POP: pop value from stack to destination register
+                             registers[`REG_SC_ADDR] = registers[`REG_SC_ADDR] - 1;
+                             bus_addr_o = registers[`REG_SC_ADDR];
+                             
+                             bus_rw_o = 1'b0;
+                         end
                     endcase
 
                     // advance stage
@@ -350,25 +368,24 @@ module pipeline #(
 
                 `PL_WRITEBACK_STAGE: begin
                     // finish the memory access operations
-                    
-                    // write stage output to destination (if necessary, depending on the opcode)
-                    if ((opcode == `OPCODE_ADD) |
-                        (opcode == `OPCODE_SUB) |
-                        (opcode == `OPCODE_AND) |
-                        (opcode == `OPCODE_OR)  |
-                        (opcode == `OPCODE_XOR) |
-                        (opcode == `OPCODE_LSH) |
-                        (opcode == `OPCODE_RSH) |
-                        (opcode == `OPCODE_NOT) |
-                        (opcode == `OPCODE_LD)) 
-                    begin
-                        registers[instruction[23:20]] = stage_output;
-				    end
-				    
-				    // finish RET execution
-				    if (opcode == `OPCODE_RET) begin
-				        registers[`REG_PC_ADDR] = bus_data_i;
-				    end
+                    case (opcode)
+                        `OPCODE_ADD, `OPCODE_SUB, `OPCODE_AND, `OPCODE_OR, 
+                        `OPCODE_XOR, `OPCODE_LSH, `OPCODE_RSH, `OPCODE_NOT,
+                        `OPCODE_LD: begin
+                            // write stage output to destination (if necessary, depending on the opcode)
+                            registers[instruction[23:20]] = stage_output;
+                        end
+                        
+                        `OPCODE_RET: begin
+                            // finish RET execution
+                            registers[`REG_PC_ADDR] = bus_data_i;
+                         end
+                         
+                        `OPCODE_POP: begin
+                            // finish POP execution
+                            registers[instruction[23:20]] = bus_data_i;
+                        end
+                    endcase
 				    
                     // advance PC (if needed), reset memory enable flags and reset stage pointer
                     if (pc_advance) begin

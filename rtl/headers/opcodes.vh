@@ -19,6 +19,8 @@
 `define OPCODE_JMP 5'h0F
 `define OPCODE_JAL 5'h10
 `define OPCODE_RET 5'h11
+`define OPCODE_PSH 5'h12
+`define OPCODE_POP 5'h13
 
 `define FLAVOUR_N 3'h0
 `define FLAVOUR_R 3'h1

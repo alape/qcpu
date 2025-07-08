@@ -20,7 +20,7 @@
 
     putw:       ld r5, 0                ; byte counter (4 bytes per word)
                 ld r6, $putwloop        ; loop vector
-    putwloop:   st r3, 0x201            ; output current word via SIMIO (its first byte will be printed)
+    putwloop:   st r3, @0x201            ; output current word via SIMIO (its first byte will be printed)
 
                 lsh r3, 8               ; shift current word left by one byte
                 add r5, r5, 1           ; increment byte counter
