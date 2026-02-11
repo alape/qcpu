@@ -66,9 +66,6 @@ module pipeline #(
     integer i;
     initial begin
         for (i = 0; i < 16; i = i + 1) registers[i] = 'h0;
-        
-        registers[`REG_ZEROES_ADDR] = 'h0;
-        registers[`REG_ONES_ADDR] = 32'hFFFFFFFF;
     end
 
     // ALU logic
